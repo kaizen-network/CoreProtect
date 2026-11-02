@@ -372,6 +372,7 @@ public class RollbackRestoreCommand {
                         class BasicThread2 implements Runnable {
                             @Override
                             public void run() {
+                                long benchStart = System.nanoTime();
                                 if (!LookupThrottle.tryAcquire(player.getName(), 100)) {
                                     Consumer.releaseRollback(player.getName());
                                     Chat.sendMessage(player, Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.DATABASE_BUSY));
@@ -485,6 +486,7 @@ public class RollbackRestoreCommand {
                                 finally {
                                     Consumer.releaseRollback(player2.getName());
                                     LookupThrottle.release(player2.getName());
+                                    if (Boolean.getBoolean("cpbench")) Chat.console("[cp-bench] " + (finalAction == 0 ? "rollback" : "restore") + " sender=" + player2.getName() + " ms=" + (System.nanoTime() - benchStart) / 1000000L);
                                 }
                             }
                         }

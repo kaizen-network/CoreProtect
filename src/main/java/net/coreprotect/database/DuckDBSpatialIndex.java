@@ -287,6 +287,16 @@ public final class DuckDBSpatialIndex {
     }
 
     private static WriterState loadWriterState(Connection connection, String prefix) throws SQLException {
+        long benchStart = System.nanoTime();
+        try {
+            return loadWriterStateTimed(connection, prefix);
+        }
+        finally {
+            if (Boolean.getBoolean("cpbench")) net.coreprotect.utility.Chat.console("[cp-bench] spatial-index load ms=" + (System.nanoTime() - benchStart) / 1000000L);
+        }
+    }
+
+    private static WriterState loadWriterStateTimed(Connection connection, String prefix) throws SQLException {
         WriterState state = new WriterState();
         DuckDBConnection duckDBConnection = connection.unwrap(DuckDBConnection.class);
         try (Connection scanConnection = duckDBConnection.duplicate(); Connection metadataConnection = duckDBConnection.duplicate()) {

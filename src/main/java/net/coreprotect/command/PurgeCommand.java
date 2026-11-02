@@ -407,6 +407,7 @@ public class PurgeCommand extends Consumer {
 
             @Override
             public void run() {
+                long benchStart = System.nanoTime();
                 boolean purgeClaimed = false;
                 boolean consumerPaused = false;
                 boolean duckTransaction = false;
@@ -957,6 +958,7 @@ public class PurgeCommand extends Consumer {
                         activePurgeStatement = null;
                         activePurgeThread = null;
                     }
+                    if (Boolean.getBoolean("cpbench")) Chat.console("[cp-bench] purge ms=" + (System.nanoTime() - benchStart) / 1000000L);
                 }
             }
         }

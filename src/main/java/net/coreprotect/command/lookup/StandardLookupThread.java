@@ -123,6 +123,7 @@ public class StandardLookupThread implements Runnable {
 
     @Override
     public void run() {
+        long benchStart = System.nanoTime();
         boolean summaryLookup = outputMode == LookupOutputMode.SUMMARY;
         if (summaryLookup && !SUMMARY_LOOKUP_ACTIVE.compareAndSet(false, true)) {
             Chat.sendMessage(player, Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.DATABASE_BUSY));
@@ -671,6 +672,7 @@ public class StandardLookupThread implements Runnable {
                 SUMMARY_LOOKUP_ACTIVE.set(false);
             }
             LookupThrottle.release(player.getName());
+            if (Boolean.getBoolean("cpbench")) Chat.console("[cp-bench] lookup sender=" + player.getName() + " ms=" + (System.nanoTime() - benchStart) / 1000000L);
         }
     }
 
