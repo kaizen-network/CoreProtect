@@ -203,7 +203,10 @@ public final class DatabaseConfigWriter {
         AclFileAttributeView sourceAcl = Files.getFileAttributeView(source, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
         AclFileAttributeView targetAcl = Files.getFileAttributeView(target, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
         if (sourceAcl != null && targetAcl != null) {
-            targetAcl.setOwner(sourceAcl.getOwner());
+            // Windows refuses to set an owner without the restore privilege, even the owner the file already has.
+            if (!sourceAcl.getOwner().equals(targetAcl.getOwner())) {
+                targetAcl.setOwner(sourceAcl.getOwner());
+            }
             targetAcl.setAcl(sourceAcl.getAcl());
             ownerCopied = true;
         }
