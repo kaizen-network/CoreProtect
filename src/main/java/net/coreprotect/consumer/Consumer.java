@@ -352,12 +352,41 @@ public class Consumer extends Process implements Runnable, Thread.UncaughtExcept
         Chat.sendConsoleMessage(Color.RED + "[CoreProtect] " + Phrase.build(Phrase.DATABASE_QUEUE_LOSS));
     }
 
+    /**
+     * Claims the database for a live migration. While claimed, rollback, restore and purge are refused,
+     * because they change rows the migration has already copied.
+     */
+    public static OperationStartResult claimMigration() {
+        synchronized (rollbackPurgeGate) {
+            if (persistenceHalted) {
+                return OperationStartResult.PERSISTENCE_HALTED;
+            }
+            if (databaseReloadPaused || databaseReloadRunning || ConfigHandler.migrationRunning || ConfigHandler.converterRunning) {
+                return OperationStartResult.RELOAD_RUNNING;
+            }
+            if (ConfigHandler.purgeRunning || backgroundPurgeRunning) {
+                return OperationStartResult.PURGE_RUNNING;
+            }
+            if (!ConfigHandler.activeRollbacks.isEmpty() || pendingRollbackPublications > 0) {
+                return OperationStartResult.ROLLBACK_RUNNING;
+            }
+            ConfigHandler.migrationRunning = true;
+            return OperationStartResult.STARTED;
+        }
+    }
+
+    public static void releaseMigration() {
+        synchronized (rollbackPurgeGate) {
+            ConfigHandler.migrationRunning = false;
+        }
+    }
+
     public static OperationStartResult claimPurge() {
         synchronized (rollbackPurgeGate) {
             if (persistenceHalted) {
                 return OperationStartResult.PERSISTENCE_HALTED;
             }
-            if (databaseReloadPaused) {
+            if (databaseReloadPaused || ConfigHandler.migrationRunning) {
                 return OperationStartResult.RELOAD_RUNNING;
             }
             if (ConfigHandler.purgeRunning || backgroundPurgeRunning) {
@@ -403,7 +432,7 @@ public class Consumer extends Process implements Runnable, Thread.UncaughtExcept
         if (persistenceHalted) {
             return OperationStartResult.PERSISTENCE_HALTED;
         }
-        if (databaseReloadPaused) {
+        if (databaseReloadPaused || ConfigHandler.migrationRunning) {
             return OperationStartResult.RELOAD_RUNNING;
         }
         if (ConfigHandler.purgeRunning || backgroundPurgeRunning) {
@@ -464,7 +493,7 @@ public class Consumer extends Process implements Runnable, Thread.UncaughtExcept
             if (requiresPersistence && persistenceHalted) {
                 return OperationStartResult.PERSISTENCE_HALTED;
             }
-            if (databaseReloadPaused) {
+            if (databaseReloadPaused || ConfigHandler.migrationRunning) {
                 return OperationStartResult.RELOAD_RUNNING;
             }
             if (ConfigHandler.purgeRunning || backgroundPurgeRunning) {

@@ -924,6 +924,16 @@ public class ConfigHandler extends Queue {
     }
 
     public static boolean performInitialization(boolean startup) {
+        return performInitialization(startup, true);
+    }
+
+    /**
+     * @param reloadIdentifiers
+     *            false keeps the world, material, block data, art and entity ids in memory instead of reloading them. Only for
+     *            switching to a database that holds the same rows: an id handed out just before the switch can still have its
+     *            map insert waiting in the consumer queue, and a reload would hand that id out a second time.
+     */
+    public static boolean performInitialization(boolean startup, boolean reloadIdentifiers) {
         try {
             BukkitAdapter.loadAdapter();
             SpigotAdapter.loadAdapter();
@@ -949,8 +959,8 @@ public class ConfigHandler extends Queue {
             Statement statement = connection.createStatement();
 
             ConfigHandler.checkPlayers(connection);
-            boolean worldsLoaded = ConfigHandler.loadWorlds(statement); // Load world ID's into memory.
-            boolean typesLoaded = ConfigHandler.loadTypes(statement); // Load material ID's into memory.
+            boolean worldsLoaded = !reloadIdentifiers || ConfigHandler.loadWorlds(statement); // Load world ID's into memory.
+            boolean typesLoaded = !reloadIdentifiers || ConfigHandler.loadTypes(statement); // Load material ID's into memory.
             if (ConfigHandler.databaseType.isColumnar() && (!worldsLoaded || !typesLoaded)) {
                 throw new IllegalStateException("Unable to initialize columnar database identifier caches");
             }

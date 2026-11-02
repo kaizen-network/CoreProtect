@@ -28,17 +28,21 @@ final class DuckDBDatabase {
             return;
         }
 
-        Class.forName("org.duckdb.DuckDBDriver");
         File databaseFile = new File(ConfigHandler.path, ConfigHandler.duckdb);
         File parent = databaseFile.getParentFile();
         if (parent != null) {
             parent.mkdirs();
         }
 
+        rootConnection = openFile(databaseFile, ConfigHandler.duckdbMemoryLimit, ConfigHandler.duckdbThreads);
+    }
+
+    static DuckDBConnection openFile(File databaseFile, String memoryLimit, int threads) throws Exception {
+        Class.forName("org.duckdb.DuckDBDriver");
         Properties properties = new Properties();
         properties.setProperty("default_block_size", Integer.toString(Database.DUCKDB_BLOCK_SIZE));
-        properties.setProperty("memory_limit", ConfigHandler.duckdbMemoryLimit);
-        properties.setProperty("threads", Integer.toString(ConfigHandler.duckdbThreads));
+        properties.setProperty("memory_limit", memoryLimit);
+        properties.setProperty("threads", Integer.toString(threads));
         properties.setProperty("temp_directory", databaseFile.getAbsolutePath() + ".tmp");
         properties.setProperty("max_temp_directory_size", ConfigHandler.duckdbMaxTempDirectorySize);
         properties.setProperty("enable_external_access", "false");
@@ -46,7 +50,7 @@ final class DuckDBDatabase {
         properties.setProperty("allow_community_extensions", "false");
         properties.setProperty("autoload_known_extensions", "false");
         properties.setProperty("autoinstall_known_extensions", "false");
-        rootConnection = DuckDBNativeSupport.openDatabase(() -> (DuckDBConnection) java.sql.DriverManager.getConnection("jdbc:duckdb:" + databaseFile.getAbsolutePath(), properties));
+        return DuckDBNativeSupport.openDatabase(() -> (DuckDBConnection) java.sql.DriverManager.getConnection("jdbc:duckdb:" + databaseFile.getAbsolutePath(), properties));
     }
 
     static synchronized Connection getConnection() throws Exception {

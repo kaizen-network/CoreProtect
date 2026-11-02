@@ -8,6 +8,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 
 import net.coreprotect.config.ConfigHandler;
+import net.coreprotect.database.LiveDuckDBMigration;
 import net.coreprotect.language.Phrase;
 import net.coreprotect.thread.NetworkHandler;
 import net.coreprotect.utility.Chat;
@@ -125,6 +126,9 @@ public class CommandHandler implements CommandExecutor {
                 }
                 else if (corecommand.equals("give")) {
                     GiveCommand.runCommand(user, command, permission, argumentArray);
+                }
+                else if (corecommand.equals("migrate-duckdb")) {
+                    LiveDuckDBMigration.runCommand(user, argumentArray);
                 }
                 else if (corecommand.equals("migrate-db")) {
                     if (!VersionUtils.validDonationKey()) {
