@@ -23,6 +23,7 @@ import net.coreprotect.utility.DatabaseUtils;
 import net.coreprotect.utility.StringUtils;
 import net.coreprotect.utility.WorldUtils;
 import net.coreprotect.utility.ErrorReporter;
+import net.coreprotect.utility.serialize.MetadataCompression;
 
 /**
  * Provides API methods for block-related lookups in the CoreProtect database.
@@ -288,7 +289,7 @@ public class BlockAPI {
 
         return new ContainerResult(
                 results.getLong("time"), resultUser, WorldUtils.getWorldName(results.getInt("wid")), (int) Math.floor(results.getDouble("x")), (int) Math.floor(results.getDouble("y")), (int) Math.floor(results.getDouble("z")),
-                results.getInt("type"), results.getInt("data"), results.getInt("amount"), DatabaseUtils.getBytes(results, "metadata"),
+                results.getInt("type"), results.getInt("data"), results.getInt("amount"), MetadataCompression.decompress(DatabaseUtils.getBytes(results, "metadata")),
                 results.getInt("action"), results.getInt("rolled_back")
         );
     }

@@ -15,6 +15,7 @@ import net.coreprotect.database.statement.UserStatement;
 import net.coreprotect.utility.WorldUtils;
 import net.coreprotect.utility.DatabaseUtils;
 import net.coreprotect.utility.ErrorReporter;
+import net.coreprotect.utility.serialize.MetadataCompression;
 
 /**
  * Provides API methods for world item transaction lookups.
@@ -91,7 +92,7 @@ public class ItemAPI {
         return new ItemResult(
                 results.getLong("time"), username, WorldUtils.getWorldName(results.getInt("wid")),
                 results.getInt("x"), results.getInt("y"), results.getInt("z"),
-                results.getInt("type"), results.getInt("amount"), DatabaseUtils.getBytes(results, "data"),
+                results.getInt("type"), results.getInt("amount"), MetadataCompression.decompress(DatabaseUtils.getBytes(results, "data")),
                 results.getInt("action"), results.getInt("rolled_back")
         );
     }

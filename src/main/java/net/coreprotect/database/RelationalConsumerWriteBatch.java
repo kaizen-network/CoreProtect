@@ -17,6 +17,8 @@ import org.duckdb.DuckDBConnection;
 
 import net.coreprotect.config.ConfigHandler;
 import net.coreprotect.database.statement.EntitySpawnStatement;
+import net.coreprotect.config.Config;
+import net.coreprotect.utility.serialize.MetadataCompression;
 
 public final class RelationalConsumerWriteBatch implements ConsumerWriteBatch {
 
@@ -315,7 +317,7 @@ public final class RelationalConsumerWriteBatch implements ConsumerWriteBatch {
         statement.setInt(7, type);
         statement.setInt(8, data);
         statement.setInt(9, amount);
-        statement.setObject(10, metadata);
+        statement.setObject(10, storedMetadata(metadata));
         statement.setInt(11, action);
         statement.setInt(12, rolledBack);
         addBatch(statement, batchCount);
@@ -335,7 +337,7 @@ public final class RelationalConsumerWriteBatch implements ConsumerWriteBatch {
         statement.setInt(8, type);
         statement.setInt(9, data);
         statement.setInt(10, amount);
-        statement.setObject(11, metadata);
+        statement.setObject(11, storedMetadata(metadata));
         statement.setInt(12, action);
         statement.setInt(13, rolledBack);
         addBatch(statement, batchCount);
@@ -352,7 +354,7 @@ public final class RelationalConsumerWriteBatch implements ConsumerWriteBatch {
         statement.setInt(5, y);
         statement.setInt(6, z);
         statement.setInt(7, type);
-        statement.setObject(8, data);
+        statement.setObject(8, storedMetadata(data));
         statement.setInt(9, amount);
         statement.setInt(10, action);
         statement.setInt(11, rolledBack);
@@ -833,6 +835,11 @@ public final class RelationalConsumerWriteBatch implements ConsumerWriteBatch {
             throw new SQLException("Unable to prepare " + operation);
         }
         return statement;
+    }
+
+    // Container, entity container and item metadata only; ClickHouse has its own write batch and never sees this.
+    private static byte[] storedMetadata(byte[] value) {
+        return Config.getGlobal().COMPRESS_METADATA ? MetadataCompression.compress(value) : value;
     }
 
     private static void addBatch(PreparedStatement statement, int batchCount) throws SQLException {

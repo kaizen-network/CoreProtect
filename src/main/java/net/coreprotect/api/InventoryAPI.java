@@ -16,6 +16,7 @@ import net.coreprotect.model.item.InventorySources;
 import net.coreprotect.utility.WorldUtils;
 import net.coreprotect.utility.DatabaseUtils;
 import net.coreprotect.utility.ErrorReporter;
+import net.coreprotect.utility.serialize.MetadataCompression;
 
 /**
  * Provides API methods for normalized player inventory transaction lookups. Tracked entity-container rows match their original or persisted
@@ -148,7 +149,7 @@ public class InventoryAPI {
         return new InventoryResult(
                 results.getLong("time"), username, WorldUtils.getWorldName(results.getInt("wid")),
                 (int) Math.floor(results.getDouble("x")), (int) Math.floor(results.getDouble("y")), (int) Math.floor(results.getDouble("z")),
-                results.getInt("type"), results.getInt("data"), results.getInt("amount"), DatabaseUtils.getBytes(results, "metadata"),
+                results.getInt("type"), results.getInt("data"), results.getInt("amount"), MetadataCompression.decompress(DatabaseUtils.getBytes(results, "metadata")),
                 results.getInt("action"), results.getInt("rolled_back"), source
         );
     }

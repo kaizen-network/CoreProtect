@@ -10,6 +10,7 @@ import net.coreprotect.utility.BlockUtils;
 import net.coreprotect.utility.ErrorReporter;
 import net.coreprotect.utility.ItemUtils;
 import net.coreprotect.utility.serialize.BlockMetaCodec;
+import net.coreprotect.utility.serialize.MetadataCompression;
 
 public class BlockStatement {
 
@@ -93,6 +94,7 @@ public class BlockStatement {
     }
 
     private static List<Object> deserializeMetadataStrict(byte[] metadata) throws Exception {
+        metadata = MetadataCompression.decompress(metadata);
         return BlockMetaCodec.isEncoded(metadata) ? BlockMetaCodec.decode(metadata) : BlockMetaCodec.decodeLegacy(metadata);
     }
 }

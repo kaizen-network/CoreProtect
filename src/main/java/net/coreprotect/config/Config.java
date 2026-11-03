@@ -47,6 +47,7 @@ public class Config extends Language {
     public String CLICKHOUSE_PASSWORD;
     public String DUCKDB_MEMORY_LIMIT;
     public String DUCKDB_MAX_TEMP_DIRECTORY_SIZE;
+    public boolean COMPRESS_METADATA;
     public String SQLITE_DATABASE;
     public String PREFIX;
     public String MYSQL_HOST;
@@ -135,6 +136,7 @@ public class Config extends Language {
         DEFAULT_VALUES.put("duckdb-memory-limit", "512MB");
         DEFAULT_VALUES.put("duckdb-threads", "3");
         DEFAULT_VALUES.put("duckdb-max-temp-directory-size", "10GB");
+        DEFAULT_VALUES.put("compress-metadata", "false");
         DEFAULT_VALUES.put("language", "en");
         DEFAULT_VALUES.put("auto-purge", "false");
         DEFAULT_VALUES.put("check-updates", "true");
@@ -186,6 +188,7 @@ public class Config extends Language {
         HEADERS.put("mysql-host", new String[] { "# Connection settings for MySQL." });
         HEADERS.put("clickhouse-host", new String[] { "# Connection settings for ClickHouse 26.1 or newer.", "# The configured database must already exist; CoreProtect creates its prefixed tables and views.", "# Multiple writers require database-lock disabled, the same version and prefix, separate data directories, and direct connections to one physical server.", "# Keep writer clocks synchronized; a shared prefix is one logical namespace for worlds and players.", "# Do not reassign usernames, and record UUID-bearing logins before UUID-less activity under a changed name.", "# Stop every writer before migration or purge; purge requires database-lock on the remaining server.", "# Replicated, distributed, and load-balanced independent ClickHouse nodes are unsupported." });
         HEADERS.put("duckdb-memory-limit", new String[] { "# Resource limits for the embedded DuckDB database.", "# The memory limit controls DuckDB's buffer manager; the temporary limit caps spill data and is not preallocated." });
+        HEADERS.put("compress-metadata", new String[] { "# Compresses the stored item data of container, entity container and item rows (lossless).", "# Rows written while this is on can only be read by builds that support it. Turning it off later keeps them readable." });
         HEADERS.put("language", new String[] { "# If modified, will automatically attempt to translate languages phrases.", "# List of language codes: https://coreprotect.net/languages/" });
         HEADERS.put("auto-purge", new String[] { "# Automatically purge data older than the configured time.", "# Examples: 30d, 12w, 6mo. Set to false to disable." });
         HEADERS.put("check-updates", new String[] { "# If enabled, CoreProtect will check for updates when your server starts up.", "# If an update is available, you'll be notified via your server console.", });
@@ -265,6 +268,7 @@ public class Config extends Language {
         this.DUCKDB_MEMORY_LIMIT = this.getString("duckdb-memory-limit");
         this.DUCKDB_THREADS = this.getInt("duckdb-threads", 3);
         this.DUCKDB_MAX_TEMP_DIRECTORY_SIZE = this.getString("duckdb-max-temp-directory-size");
+        this.COMPRESS_METADATA = this.getBoolean("compress-metadata");
         this.SQLITE_DATABASE = this.getString("sqlite-database");
         this.LANGUAGE = this.getString("language");
         this.AUTO_PURGE = this.getString("auto-purge");
