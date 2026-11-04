@@ -98,6 +98,7 @@ public final class LiveDuckDBMigration implements Runnable {
     private final boolean compress = Config.getGlobal().COMPRESS_METADATA;
     final ExecutorService compressor;
     DuckDBConnection duck;
+    boolean reopenBeforeVerify = true; // --test-no-reopen turns it off, for a comparison run
     private volatile boolean cancelled;
     private volatile boolean paused;
     // Set once the plugin may have left its previous database: config.yml was changed, or its DuckDB file was closed.
@@ -154,8 +155,14 @@ public final class LiveDuckDBMigration implements Runnable {
         long rowsPerSecond = 100_000L;
         String testFail = null;
         long testHoldPauseMillis = 0L;
+        boolean testNoReopen = false;
         try {
             for (int i = compact ? 2 : 1; i < args.length; i += 2) {
+                if (args[i].equalsIgnoreCase("--test-no-reopen")) { // takes no value
+                    testNoReopen = true;
+                    i--;
+                    continue;
+                }
                 if (i + 1 >= args.length) {
                     throw new IllegalArgumentException("missing value for " + args[i]);
                 }
@@ -205,6 +212,7 @@ public final class LiveDuckDBMigration implements Runnable {
         }
 
         LiveDuckDBMigration migration = new LiveDuckDBMigration(compact, memoryLimit, threads, rowsPerSecond, testFail, testHoldPauseMillis);
+        migration.reopenBeforeVerify = !testNoReopen;
         running = migration;
         try {
             Thread thread = new Thread(migration, "CoreProtect-MigrateDuckDB");
@@ -252,6 +260,7 @@ public final class LiveDuckDBMigration implements Runnable {
             boolean onOld = !switching || switchedBack;
             error("Failed: " + e + (onOld ? ". " + stays() : ". See the error above about switching back."));
             ErrorReporter.report(e);
+            logMemory("at the failure");
         }
         finally {
             if (compressor != null) {
@@ -299,6 +308,14 @@ public final class LiveDuckDBMigration implements Runnable {
         long copyNanos = System.nanoTime() - copyStart;
         log("Phase 1 copied " + count(rows) + " rows in " + seconds(copyNanos) + " (" + count(rate(rows, copyNanos)) + " rows/s).");
         testFail("copy");
+        logMemory("after the copy");
+        if (reopenBeforeVerify) {
+            // Drops whatever the DuckDB instance still holds from the copy. Without this the verify ran out of memory on a
+            // large database (about 140 million rows) at 256MB and at 1GB, with the cap almost full before a 16 MiB request.
+            closeTarget();
+            duck = DuckDBDatabase.openFile(target, memoryLimit, threads);
+            logMemory("after reopening the new file");
+        }
 
         long verifyStart = System.nanoTime();
         for (String table : tables) {
@@ -932,6 +949,26 @@ public final class LiveDuckDBMigration implements Runnable {
     private void testFail(String point) {
         if (point.equals(testFail)) {
             throw new IllegalStateException("test failure requested at '" + point + "'");
+        }
+    }
+
+    // DuckDB's own memory use of the new file by tag, largest first, so a memory failure names what filled the cap.
+    private void logMemory(String when) {
+        if (duck == null) {
+            return;
+        }
+        StringBuilder tags = new StringBuilder();
+        try (Statement statement = duck.createStatement(); ResultSet resultSet = statement.executeQuery("SELECT tag, memory_usage_bytes, temporary_storage_bytes FROM duckdb_memory() WHERE memory_usage_bytes >= 1048576 OR temporary_storage_bytes >= 1048576 ORDER BY memory_usage_bytes DESC")) {
+            while (resultSet.next()) {
+                tags.append(tags.length() == 0 ? "" : ", ").append(resultSet.getString(1)).append(' ').append(megabytes(resultSet.getLong(2))).append(" MB");
+                if (resultSet.getLong(3) >= 1_048_576L) {
+                    tags.append(" (temp ").append(megabytes(resultSet.getLong(3))).append(" MB)");
+                }
+            }
+            log("DuckDB memory " + when + ": " + (tags.length() == 0 ? "under 1 MB" : tags) + ".");
+        }
+        catch (SQLException e) {
+            log("DuckDB memory " + when + ": not available (" + e.getMessage().split("\n")[0] + ").");
         }
     }
 
