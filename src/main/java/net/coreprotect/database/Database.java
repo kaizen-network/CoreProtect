@@ -1,5 +1,6 @@
 package net.coreprotect.database;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -997,12 +998,26 @@ public class Database extends Queue {
         return candidate.substring(0, maxPrefixLength) + "_" + hash;
     }
 
+    // SQLite sorts index builds in temp files under /tmp by default. Pterodactyl mounts /tmp as a 100 MB tmpfs,
+    // which large tables outgrow (SQLITE_FULL). The setting is process-wide, so setting it once covers every connection.
+    private static void useDataFolderForSQLiteTempFiles(Statement statement) {
+        try {
+            File folder = new File(ConfigHandler.path, "tmp");
+            folder.mkdirs();
+            statement.executeUpdate("PRAGMA temp_store_directory = '" + folder.getAbsolutePath().replace("'", "''") + "'");
+        }
+        catch (Exception e) {
+            // keep SQLite's default temp folder
+        }
+    }
+
     private static void createSQLiteTables(String prefix, boolean forcePrefix, Connection forceConnection, boolean purge) {
         try (Connection connection = (forceConnection != null ? forceConnection : Database.getConnection(true, 0))) {
             if (connection == null) {
                 throw new SQLException("Unable to open SQLite while initializing the schema");
             }
             try (Statement statement = connection.createStatement()) {
+                useDataFolderForSQLiteTempFiles(statement);
                 List<String> tableData = new ArrayList<>();
                 List<String> indexData = new ArrayList<>();
                 String attachDatabase = "";
