@@ -9,7 +9,7 @@
     <skipTests>true</skipTests>
     <maven.compiler.release>11</maven.compiler.release>
     <clickhouse.version>0.10.0</clickhouse.version>
-    <duckdb.version>1.4.5.0</duckdb.version>
+    <duckdb.version>1.5.6.0</duckdb.version>
   </properties>
   <build>
     <resources>
