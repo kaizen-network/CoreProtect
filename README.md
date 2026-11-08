@@ -12,6 +12,29 @@ CoreProtect is a fast, efficient data logging and anti-griefing tool. Inspect, l
 
 CoreProtect is the [#1 anti-griefing plugin](https://bstats.org/plugin/bukkit/CoreProtect), and has been actively developed since early 2012.
 
+## About this fork
+
+This is the Kaizen Network fork of [PlayPro/CoreProtect](https://github.com/PlayPro/CoreProtect). It is not an official CoreProtect release; for CoreProtect itself, use the upstream links below.
+
+**Before you install: there is no way back to official CoreProtect without a backup.**
+
+- On its first start the fork upgrades the database schema to version 25.1. Official CoreProtect 24.x then refuses to start on that database ("CoreProtect v25.0 or higher is required"). This happens even if you never use the features below. Back up the database while the server is stopped, before the first start; going back means restoring that backup and losing everything logged since.
+- Rows stored with `compress-metadata` on can only be read by builds that have this code.
+- The fork uses DuckDB 1.5.6.0, upstream 1.4.5.0. A DuckDB file opened and took writes in both versions in a test, so this alone does not block going back, but 1.4.5 brings back the checkpoint memory problem described below.
+
+It is built on upstream master and differs from it in these ways:
+
+- `co migrate-duckdb` moves a running server from SQLite to DuckDB without a restart: a background copy, a verify, then a short logging pause for the switch (0.2 to 1.3 s in the production runs). Failures go back to SQLite; the guide covers the rare case where that also fails. See [docs/duckdb-migration.md](docs/duckdb-migration.md).
+- `co migrate-duckdb compact` rewrites a live DuckDB file the same way, to drop free space. With `compress-metadata` on, it also compresses stored item metadata.
+- `compress-metadata` (config, default `false`) stores container, entity container and item metadata as zlib with a preset dictionary. It is lossless, but one-way: builds without this code cannot read compressed rows.
+- DuckDB JDBC 1.5.6.0 instead of 1.4.5.0, which could run out of memory in a checkpoint when a value was larger than one 128 KiB block.
+- Version 25.1, so the v25 schema patches run on upgraded databases. The upgrade is one-way: CoreProtect 24.x refuses the database afterwards.
+- SQLite temp files go to `plugins/CoreProtect/tmp`, so index builds work where `/tmp` is a small tmpfs (as in Pterodactyl containers). The setting applies to the whole server process, so other plugins' SQLite temp files go there too.
+- The config file owner is only set when it differs, which fixes writing `config.yml` on Windows.
+- With `-Dcpbench=true`, timing lines for lookups, rollbacks, purges and the DuckDB spatial index. The benchmark and migration test tools in [lab/](lab/README.md) use them; results are in [lab/RESULTS.md](lab/RESULTS.md).
+
+Build with JDK 25: `mvn clean package -Dproject.branch=fork`, which gives `target/CoreProtect-25.1.jar`. An empty branch name refuses to start, and a name containing `-dev` skips the schema patches.
+
 | Quick Links |  |
 | --- | --- |
 | CoreProtect Discord: | [discord.gg/b4DZ4jy](https://discord.gg/b4DZ4jy) |
