@@ -1,0 +1,32 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>lab</groupId>
+  <artifactId>CpBench</artifactId>
+  <version>1.0</version>
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>21</maven.compiler.release>
+  </properties>
+  <repositories>
+    <repository>
+      <id>paper-repo</id>
+      <url>https://repo.papermc.io/repository/maven-public/</url>
+    </repository>
+  </repositories>
+  <dependencies>
+    <dependency>
+      <groupId>io.papermc.paper</groupId>
+      <artifactId>paper-api</artifactId>
+      <version>26.3.build.38-alpha</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- the plugin jar built from the repo root (build it first) -->
+    <dependency>
+      <groupId>net.coreprotect</groupId>
+      <artifactId>CoreProtect</artifactId>
+      <version>24.1</version>
+      <scope>system</scope>
+      <systemPath>${project.basedir}/../../target/CoreProtect-25.1.jar</systemPath>
+    </dependency>
+  </dependencies>
+</project>

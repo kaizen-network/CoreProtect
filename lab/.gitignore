@@ -1,0 +1,13 @@
+.venv/
+data/
+out/
+server/
+__pycache__/
+bench-plugin/target/
+*.jar
+*.db
+*.duckdb
+*.wal
+server-mig/
+node_modules/
+migrate/bots/stats.json

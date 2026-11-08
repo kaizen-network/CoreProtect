@@ -1,0 +1,20 @@
+name: CpBench
+main: lab.cpbench.CpBench
+version: 1.0
+api-version: '1.21'
+depend: [CoreProtect]
+commands:
+  cpbench:
+    description: CoreProtect API benchmark
+    permission: cpbench.use
+    usage: |
+      /cpbench world <name>
+      /cpbench radius <world> <x> <y> <z> <radius> <seconds> [limit=N]
+      /cpbench user <name> <seconds> [limit=N]
+      /cpbench time <seconds> [limit=N]
+      /cpbench block <world> <x> <y> <z>
+      /cpbench write <count> <world>
+      /cpbench repeat <count> <scenario...>
+permissions:
+  cpbench.use:
+    default: op

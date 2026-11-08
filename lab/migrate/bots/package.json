@@ -1,0 +1,6 @@
+{
+  "name": "cp-lab-bots",
+  "private": true,
+  "description": "Mineflayer bots that play while CoreProtect migrates (see docs/duckdb-migration.md)",
+  "dependencies": { "mineflayer": "4.39.0" }
+}

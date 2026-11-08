@@ -1,0 +1,13 @@
+name: MigWriter
+main: lab.migwriter.MigWriter
+version: 1.0
+api-version: '1.21'
+depend: [CoreProtect]
+commands:
+  migwrite:
+    description: Log block placements through the CoreProtect API at a fixed rate
+    permission: migwrite.use
+    usage: /migwrite <rows> <rows per second> <world> [blocks]
+permissions:
+  migwrite.use:
+    default: op
