@@ -24,7 +24,7 @@
     <dependency>
       <groupId>net.coreprotect</groupId>
       <artifactId>CoreProtect</artifactId>
-      <version>24.1</version>
+      <version>25.1</version>
       <scope>system</scope>
       <systemPath>${project.basedir}/../../target/CoreProtect-25.1.jar</systemPath>
     </dependency>
