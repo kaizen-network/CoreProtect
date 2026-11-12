@@ -70,6 +70,7 @@ public final class RelationalConsumerWriteBatch implements ConsumerWriteBatch {
     private DuckDBSpatialIndex.Transaction duckDBSpatialIndex;
     private EntitySpawnStatement.Updates entitySpawnUpdates;
     private boolean commitAttempted;
+    private Throwable commitFailure;
 
     public RelationalConsumerWriteBatch(Connection connection, DatabaseType databaseType) throws SQLException {
         this.connection = Objects.requireNonNull(connection, "connection");
@@ -79,6 +80,7 @@ public final class RelationalConsumerWriteBatch implements ConsumerWriteBatch {
 
     @Override
     public void begin() throws Exception {
+        clearProcessedEntityRemovals();
         commitAttempted = false;
         if (databaseType.isDuckDB()) {
             duckDBSpatialIndex = DuckDBSpatialIndex.begin(connection, ConfigHandler.prefix);
@@ -88,7 +90,9 @@ public final class RelationalConsumerWriteBatch implements ConsumerWriteBatch {
 
     @Override
     public boolean commit() throws Exception {
+        clearProcessedEntityRemovals();
         commitAttempted = false;
+        commitFailure = null;
         try {
             finishDuckDBBlockAppender();
             boolean acknowledgedRollback = Database.isRollbackOnlyTransactionAcknowledged();
@@ -115,6 +119,7 @@ public final class RelationalConsumerWriteBatch implements ConsumerWriteBatch {
             return true;
         }
         catch (Exception exception) {
+            commitFailure = exception;
             Database.reportDatabaseFailure(exception);
             Database.rollbackTransaction(transactionStatement, databaseType);
             duckDBSpatialIndex = null;
@@ -128,7 +133,13 @@ public final class RelationalConsumerWriteBatch implements ConsumerWriteBatch {
     }
 
     @Override
+    public Throwable getCommitFailure() {
+        return commitFailure;
+    }
+
+    @Override
     public void rollback() {
+        clearProcessedEntityRemovals();
         try {
             finishDuckDBBlockAppender();
         }
@@ -563,6 +574,12 @@ public final class RelationalConsumerWriteBatch implements ConsumerWriteBatch {
             entitySpawnUpdates = new EntitySpawnStatement.Updates(connection, this, databaseType);
         }
         return entitySpawnUpdates;
+    }
+
+    private void clearProcessedEntityRemovals() {
+        if (entitySpawnUpdates != null) {
+            entitySpawnUpdates.clearProcessedRemovals();
+        }
     }
 
     @Override
