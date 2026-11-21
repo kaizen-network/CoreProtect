@@ -111,7 +111,7 @@ def build():
     subprocess.run([mvn, "-B", "-q", "-Dproject.branch=fork", "clean", "package"], cwd=FORK, check=True)
     subprocess.run([mvn, "-B", "-q", "clean", "package"], cwd=LAB / "bench-plugin", check=True)
     plugins = SERVER / "plugins"
-    shutil.copyfile(FORK / "target" / "CoreProtect-25.1.jar", plugins / "CoreProtect.jar")
+    shutil.copyfile(FORK / "target" / "CoreProtect-25.2.jar", plugins / "CoreProtect.jar")
     shutil.copyfile(LAB / "bench-plugin" / "target" / "CpBench-1.0.jar", plugins / "CpBench.jar")
     print("copied CoreProtect.jar and CpBench.jar into", plugins)
 

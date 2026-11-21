@@ -21,7 +21,7 @@ cd ..
 JAVA_HOME=<path to JDK 25> mvn -B -Dproject.branch=fork clean package
 ```
 
-Output: `../target/CoreProtect-25.1.jar`. JDK 21 cannot build it (paper-api 26.3 is Java 25 bytecode). Without `-Dproject.branch` the jar refuses to enable ("branch has not been set").
+Output: `../target/CoreProtect-25.2.jar`. JDK 21 cannot build it (paper-api 26.3 is Java 25 bytecode). Without `-Dproject.branch` the jar refuses to enable ("branch has not been set").
 
 ## Run
 
@@ -73,7 +73,7 @@ From the console, `co lookup` needs a user, or a `#` radius plus a block filter.
 ## Compression tools
 
 - `loader/gen_synthetic.py ... --item-blobs a.bin,b.bin [--blob-share 0.15]` gives that share of the generated container and item rows real serialized item metadata. A blob file holds a 4-byte big-endian length before each blob; any source of serialized item stacks works, for example the `co_container.metadata` values of an existing database.
-- `bench/CompressBench.java` times the plugin's own compression per blob, one thread: `java -cp ../target/CoreProtect-25.1.jar bench/CompressBench.java <blob files>`. It prints the ratio, compress and decompress microseconds, and plain zlib without a dictionary for comparison.
+- `bench/CompressBench.java` times the plugin's own compression per blob, one thread: `java -cp ../target/CoreProtect-25.2.jar bench/CompressBench.java <blob files>`. It prints the ratio, compress and decompress microseconds, and plain zlib without a dictionary for comparison.
 - `migrate/value_digest.py` checks every metadata value after a migration. Run it on the SQLite file, and on the DuckDB file with the dictionary from the jar (`metadata-dictionary-1.bin`); equal output means every value came back byte for byte, at the same row ID.
 
 ## Things to keep in mind

@@ -7,7 +7,7 @@ The code is mainly in `src/main/java/net/coreprotect/database/LiveDuckDBMigratio
 ## Running it on a real server
 
 1. Make a backup of `plugins/CoreProtect/database.db` (plus `database.db-wal` and `database.db-shm` if they exist) while the server is stopped.
-2. Install the fork build. On its first boot it patches the SQLite file to schema 2.25.1 (adds `co_sign.rolled_back` and the three entity tables). This is one-way, which is why the backup comes first.
+2. Install the fork build. On its first boot it patches the SQLite file to schema 2.25.2 (adds `co_sign.rolled_back` and the three entity tables). This is one-way, which is why the backup comes first.
 3. Check free disk space. The DuckDB file was about 12% of the SQLite file in the tests (120 MB for a 1,009 MB SQLite file). Keep at least a quarter of the SQLite size free, plus room for the backup.
 4. From the server console (or RCON), run `co migrate-duckdb`. Players cannot run it.
 5. Watch the server log. Every line starts with `migrate-duckdb:`. It prints progress every 5 seconds per table (rows, percent, rate, time left), then "Done", "Failed" or "Cancelled".
