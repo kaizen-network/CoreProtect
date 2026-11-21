@@ -1033,7 +1033,7 @@ public class Database extends Queue {
     }
 
     // SQLite sorts index builds in temp files under /tmp by default. Pterodactyl mounts /tmp as a 100 MB tmpfs,
-    // which large tables outgrow (SQLITE_FULL). The setting is process-wide, so setting it once covers every connection.
+    // which large tables outgrow (SQLITE_FULL). The setting is process-wide, so the one statement here covers every connection.
     private static void useDataFolderForSQLiteTempFiles(Statement statement) {
         try {
             File folder = new File(ConfigHandler.path, "tmp");
