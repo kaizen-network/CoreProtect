@@ -291,7 +291,8 @@ public final class LiveDuckDBMigration implements Runnable {
         Set<String> sourceTables = checkSource(source);
         for (String table : tables) {
             long highWater = sourceTables.contains(prefix + table) ? maxRowId(source, table, 0L) : 0L;
-            if (!table.equals("block") && highWater > Integer.MAX_VALUE) {
+            // DuckDB row ID types as in DuckDBDatabase.rowId
+            if (!(table.equals("block") || table.equals("container") || table.equals("item")) && highWater > Integer.MAX_VALUE) {
                 throw new IllegalStateException(prefix + table + " has row ID " + highWater + ", which does not fit DuckDB's INTEGER row ID column");
             }
             startHighWater.put(table, highWater);
@@ -399,6 +400,9 @@ public final class LiveDuckDBMigration implements Runnable {
             closeTarget();
             long copyNanos = System.nanoTime() - pauseStart - drainNanos;
             log("Phase 2 copied and verified " + count(rows) + " rows in " + seconds(copyNanos) + " (waited " + seconds(drainNanos) + " for queued writes).");
+            // Once the server is stopping, opening a database waits for the main thread and is cancelled, and so would
+            // be the switch back. Stop here instead, while the old database is still active and untouched.
+            checkStop();
 
             if (compact) {
                 swapFiles(source);
@@ -543,7 +547,7 @@ public final class LiveDuckDBMigration implements Runnable {
                 }
             }
             if (compact) {
-                return sourceTables; // the plugin made this file: no old schema, and DuckDB already enforces UNIQUE(kill_rowid)
+                return sourceTables; // the plugin made this file: no old schema
             }
             try (ResultSet resultSet = statement.executeQuery("PRAGMA journal_mode")) {
                 if (resultSet.next() && !"wal".equalsIgnoreCase(resultSet.getString(1))) {
@@ -554,13 +558,6 @@ public final class LiveDuckDBMigration implements Runnable {
                 try (ResultSet resultSet = statement.executeQuery("SELECT version FROM " + prefix + "version ORDER BY rowid DESC LIMIT 1")) {
                     if (resultSet.next() && compareVersion(resultSet.getString(1), "2.23.0") < 0) {
                         throw new IllegalStateException("source schema version " + resultSet.getString(1) + " is older than 2.23.0");
-                    }
-                }
-            }
-            if (sourceTables.contains(prefix + "entity_spawn")) {
-                try (ResultSet resultSet = statement.executeQuery("SELECT count(*) FROM (SELECT kill_rowid FROM " + prefix + "entity_spawn WHERE kill_rowid IS NOT NULL GROUP BY kill_rowid HAVING count(*) > 1)")) {
-                    if (resultSet.next() && resultSet.getLong(1) > 0) {
-                        throw new IllegalStateException(prefix + "entity_spawn has " + resultSet.getLong(1) + " duplicate kill_rowid values (DuckDB has a UNIQUE constraint on it)");
                     }
                 }
             }
