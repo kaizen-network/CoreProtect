@@ -3,15 +3,14 @@ package net.coreprotect.consumer.process;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import net.coreprotect.config.ConfigHandler;
 import net.coreprotect.consumer.Consumer;
+import net.coreprotect.consumer.QueuePayload;
 import net.coreprotect.consumer.Queue;
 import net.coreprotect.database.ConsumerWriteBatch;
 import net.coreprotect.database.logger.ContainerLogger;
@@ -51,17 +50,16 @@ class ContainerTransactionProcess {
         }
 
         Location location = (Location) object;
-        Map<Integer, Object> inventories = Consumer.consumerInventories.get(processId);
-        Object inventory = inventories.get(id);
+        Object inventory = QueuePayload.detail(Consumer.consumerObjects.get(processId).get(id));
         if (inventory == null) {
             return;
         }
 
-        String transactingChestId = HopperTransactionUtils.getTransactionId(location);
-        String loggingChestIdSuffix = HopperTransactionUtils.getLoggingIdSuffix(location);
-        String loggingChestId = HopperTransactionUtils.getLoggingId(user, loggingChestIdSuffix);
+        String transactingChestId = HopperTransactionUtils.getTransactionId(user, type, location);
+        String viewerGroupId = HopperTransactionUtils.getViewerGroupId(user, type, location);
+        String loggingChestId = HopperTransactionUtils.getLoggingId(user, type, location);
         HopperTransactionUtils.synchronizeTransaction(transactingChestId,
-                () -> processTransaction(preparedStmtContainer, preparedStmtItems, batchCount, processId, id, type, forceData, user, inventory, location, transactingChestId, loggingChestIdSuffix, loggingChestId));
+                () -> processTransaction(preparedStmtContainer, preparedStmtItems, batchCount, processId, id, type, forceData, user, inventory, location, transactingChestId, viewerGroupId, loggingChestId));
     }
 
     private static void processTransaction(ConsumerWriteBatch preparedStmtContainer, ConsumerWriteBatch preparedStmtItems, int batchCount, int processId, int id, Material type, int forceData, String user, Object inventory,
@@ -97,14 +95,7 @@ class ContainerTransactionProcess {
             if (force_size == 0 && ConfigHandler.oldContainer.getOrDefault(loggingChestId, Collections.synchronizedList(new ArrayList<>())).size() == 1
                     && HopperTransactionUtils.pendingDeltaCount(transactingChestId) == 0) {
                 int loopCount = ConfigHandler.loggingChest.getOrDefault(loggingChestId, 0);
-                int maxInventorySize = (99 * 54);
-                try {
-                    Inventory checkInventory = (Inventory) inventory;
-                    maxInventorySize = checkInventory.getSize() * checkInventory.getMaxStackSize();
-                }
-                catch (Exception e) {
-                    // use default of 5,346
-                }
+                int maxInventorySize = 99 * (inventory instanceof ItemStack[] ? ((ItemStack[]) inventory).length : 54);
 
                 if (loopCount > maxInventorySize) {
                     ItemStack[] destinationContents = null;
@@ -134,13 +125,13 @@ class ContainerTransactionProcess {
         HopperTransactionUtils.removeOwner(transactionId, loggingId);
     }
 
-    static void discard(int processId, int failedIndex, int forceData, String user, Location location) {
+    static void discard(int processId, int failedIndex, Material type, int forceData, String user, Location location) {
         if (location.getWorld() == null) {
             return;
         }
-        String transactionId = HopperTransactionUtils.getTransactionId(location);
-        String locationSuffix = HopperTransactionUtils.getLoggingIdSuffix(location);
-        String loggingId = HopperTransactionUtils.getLoggingId(user, locationSuffix);
+        String transactionId = HopperTransactionUtils.getTransactionId(user, type, location);
+        String locationSuffix = HopperTransactionUtils.getViewerGroupId(user, type, location);
+        String loggingId = HopperTransactionUtils.getLoggingId(user, type, location);
         HopperTransactionUtils.synchronizeTransaction(transactionId, () -> {
             List<ItemStack[]> old = ConfigHandler.oldContainer.get(loggingId);
             if (old == null || old.isEmpty()) {
@@ -167,7 +158,9 @@ class ContainerTransactionProcess {
                 if (snapshotIndex < forceSize) {
                     Queue.pollForceContainer(loggingId, snapshotIndex);
                 }
-                HopperTransactionUtils.consumeSnapshot(transactionId, loggingId, snapshotIndex);
+                if (type != Material.ENDER_CHEST) {
+                    HopperTransactionUtils.consumeSnapshot(transactionId, loggingId, snapshotIndex);
+                }
             }
             if (old.isEmpty()) {
                 clearContainerTransaction(transactionId, locationSuffix, loggingId);

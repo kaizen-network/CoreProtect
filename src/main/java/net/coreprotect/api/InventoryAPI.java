@@ -3,19 +3,15 @@ package net.coreprotect.api;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.StringJoiner;
 
 import net.coreprotect.api.result.InventoryResult;
-import net.coreprotect.config.Config;
 import net.coreprotect.config.ConfigHandler;
-import net.coreprotect.database.Database;
 import net.coreprotect.database.statement.UserStatement;
 import net.coreprotect.model.item.InventorySources;
 import net.coreprotect.utility.WorldUtils;
 import net.coreprotect.utility.DatabaseUtils;
-import net.coreprotect.utility.ErrorReporter;
 import net.coreprotect.utility.serialize.MetadataCompression;
 
 /**
@@ -29,26 +25,7 @@ public class InventoryAPI {
     }
 
     public static List<InventoryResult> performLookup(LookupOptions options) {
-        List<InventoryResult> result = new ArrayList<>();
-
-        if (!Config.getGlobal().API_ENABLED) {
-            return result;
-        }
-
-        if (options == null) {
-            options = LookupOptions.builder().build();
-        }
-
-        try (Connection connection = Database.getConnection(false, 1000)) {
-            if (connection == null) {
-                return result;
-            }
-
-            LookupFilter filter = LookupFilter.fromOptions(connection, options);
-            if (filter.hasInvalidUser() || filter.hasInvalidLocation()) {
-                return result;
-            }
-
+        return LookupFilter.execute(options, (connection, filter, selected, result) -> {
             boolean snapshot = filter.beginDuckDBSnapshot(connection);
             try {
                 StringBuilder whereBuilder = new StringBuilder();
@@ -64,8 +41,8 @@ public class InventoryAPI {
                         blockWhereBuilder.toString(),
                         where,
                         entityWhereBuilder.toString(),
-                        options.getInventoryActions(),
-                        options.hasLimit(),
+                        selected.getInventoryActions(),
+                        selected.hasLimit(),
                         filter.table(connection, "block", ""),
                         filter.table(connection, "container", ""),
                         filter.entityContainerTable(connection, "entity_rows"),
@@ -77,9 +54,9 @@ public class InventoryAPI {
                     parameterIndex = filter.bind(statement, parameterIndex);
                     parameterIndex = filter.bindEntityContainer(statement, parameterIndex);
                     parameterIndex = filter.bind(statement, parameterIndex);
-                    if (options.hasLimit()) {
-                        statement.setInt(parameterIndex++, options.getLimitCount());
-                        statement.setInt(parameterIndex, options.getLimitOffset());
+                    if (selected.hasLimit()) {
+                        statement.setInt(parameterIndex++, selected.getLimitCount());
+                        statement.setInt(parameterIndex, selected.getLimitOffset());
                     }
 
                     try (ResultSet results = statement.executeQuery()) {
@@ -92,12 +69,7 @@ public class InventoryAPI {
             finally {
                 filter.endDuckDBSnapshot(connection, snapshot);
             }
-        }
-        catch (Exception e) {
-            ErrorReporter.report(e);
-        }
-
-        return result;
+        });
     }
 
     private static String buildQuery(String blockWhere, String where, String entityWhere, List<InventoryAction> actions, boolean hasLimit, String blockTable, String containerTable, String entityContainerTable, String itemTable) {

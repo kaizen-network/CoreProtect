@@ -1,46 +1,41 @@
 package net.coreprotect.config;
 
-import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Pattern;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 
 import net.coreprotect.CoreProtect;
 import net.coreprotect.consumer.Consumer;
-import net.coreprotect.language.Language;
 import net.coreprotect.thread.Scheduler;
 import net.coreprotect.utility.VersionUtils;
 
-public class Config extends Language {
+public class Config {
 
     private static final Map<String, String[]> HEADERS = new HashMap<>();
     private static final Map<String, String> DEFAULT_VALUES = new LinkedHashMap<>();
     private static final Map<String, Config> CONFIG_BY_WORLD_NAME = new ConcurrentHashMap<>();
     private static final String DEFAULT_FILE_HEADER = "# CoreProtect Config";
-    private static final Pattern NON_DIGIT_PATTERN = Pattern.compile("[^0-9]");
     public static final String LINE_SEPARATOR = "\n";
 
-    private static final Config GLOBAL = new Config();
+    private static volatile Config global = new Config();
     private final HashMap<String, String> config;
     private Config defaults;
 
     public String DONATION_KEY;
-    public String DATABASE_TYPE;
+    public volatile String DATABASE_TYPE;
     public String CLICKHOUSE_HOST;
     public String CLICKHOUSE_DATABASE;
     public String CLICKHOUSE_USERNAME;
@@ -49,7 +44,7 @@ public class Config extends Language {
     public String DUCKDB_MAX_TEMP_DIRECTORY_SIZE;
     public boolean COMPRESS_METADATA;
     public String SQLITE_DATABASE;
-    public String PREFIX;
+    public volatile String PREFIX;
     public String MYSQL_HOST;
     public String MYSQL_DATABASE;
     public String MYSQL_USERNAME;
@@ -67,7 +62,7 @@ public class Config extends Language {
     public boolean DUPLICATE_SUPPRESSION;
     public boolean EXCLUDE_TNT;
     public boolean NETWORK_DEBUG;
-    public boolean MYSQL;
+    public volatile boolean MYSQL;
     public boolean CHECK_UPDATES;
     public boolean ERROR_REPORTING;
     public boolean API_ENABLED;
@@ -113,6 +108,7 @@ public class Config extends Language {
     public int MAXIMUM_POOL_SIZE;
     public int CLICKHOUSE_PORT;
     public int CLICKHOUSE_CONSUMER_DELAY;
+    public int DUCKDB_CONSUMER_DELAY = 2500;
     public int MYSQL_PORT;
     public int DEFAULT_RADIUS;
     public int DUCKDB_THREADS;
@@ -251,7 +247,8 @@ public class Config extends Language {
         this.DONATION_KEY = this.getString("donation-key");
         this.DATABASE_TYPE = this.getString("database-type");
         this.CLICKHOUSE_HOST = this.getString("clickhouse-host");
-        this.CLICKHOUSE_PORT = this.getInt("clickhouse-port");
+        int clickHousePort = this.getInt("clickhouse-port", 8123);
+        this.CLICKHOUSE_PORT = (clickHousePort < 1 || clickHousePort > 65535) ? 8123 : clickHousePort;
         this.CLICKHOUSE_CONSUMER_DELAY = Math.max(500,
                 this.getInt("clickhouse-consumer-delay", 2500));
         this.CLICKHOUSE_DATABASE = this.getString("clickhouse-database");
@@ -261,7 +258,8 @@ public class Config extends Language {
         this.MYSQL = this.getBoolean("use-mysql");
         this.PREFIX = this.getString("table-prefix");
         this.MYSQL_HOST = this.getString("mysql-host");
-        this.MYSQL_PORT = this.getInt("mysql-port");
+        int mysqlPort = this.getInt("mysql-port", 3306);
+        this.MYSQL_PORT = (mysqlPort < 1 || mysqlPort > 65535) ? 3306 : mysqlPort;
         this.MYSQL_DATABASE = this.getString("mysql-database");
         this.MYSQL_USERNAME = this.getString("mysql-username");
         this.MYSQL_PASSWORD = this.getString("mysql-password");
@@ -269,6 +267,8 @@ public class Config extends Language {
         this.DUCKDB_THREADS = this.getInt("duckdb-threads", 3);
         this.DUCKDB_MAX_TEMP_DIRECTORY_SIZE = this.getString("duckdb-max-temp-directory-size");
         this.COMPRESS_METADATA = this.getBoolean("compress-metadata");
+        this.DUCKDB_CONSUMER_DELAY = Math.max(500,
+                this.getInt("duckdb-consumer-delay", 2500));
         this.SQLITE_DATABASE = this.getString("sqlite-database");
         this.LANGUAGE = this.getString("language");
         this.AUTO_PURGE = this.getString("auto-purge");
@@ -324,7 +324,7 @@ public class Config extends Language {
     }
 
     public static Config getGlobal() {
-        return GLOBAL;
+        return global;
     }
 
     // returns a world specific config if it exists, otherwise the global config
@@ -333,7 +333,7 @@ public class Config extends Language {
     }
 
     public static Config getConfig(final String worldName) {
-        return CONFIG_BY_WORLD_NAME.getOrDefault(worldName, GLOBAL);
+        return CONFIG_BY_WORLD_NAME.getOrDefault(worldName, global);
     }
 
     public Config() {
@@ -344,12 +344,9 @@ public class Config extends Language {
         this.defaults = defaults;
     }
 
-    private String get(final String key, final String dfl) {
+    private String get(final String key) {
         String configured = this.config.get(key);
         if (configured == null) {
-            if (dfl != null) {
-                return dfl;
-            }
             if (this.defaults == null) {
                 configured = DEFAULT_VALUES.get(key);
             }
@@ -361,13 +358,13 @@ public class Config extends Language {
     }
 
     private boolean getBoolean(final String key) {
-        final String configured = this.get(key, null);
-        return configured != null && configured.startsWith("t");
+        final String configured = this.get(key);
+        return configured != null && configured.trim().equalsIgnoreCase("true");
     }
 
     private boolean getBoolean(final String key, final boolean dfl) {
-        final String configured = this.get(key, null);
-        return configured == null ? dfl : configured.startsWith("t");
+        final String configured = this.get(key);
+        return configured == null ? dfl : configured.trim().equalsIgnoreCase("true");
     }
 
     private int getInt(final String key) {
@@ -375,19 +372,27 @@ public class Config extends Language {
     }
 
     private int getInt(final String key, final int dfl) {
-        String configured = this.get(key, null);
+        String configured = this.get(key);
 
         if (configured == null) {
             return dfl;
         }
 
-        configured = NON_DIGIT_PATTERN.matcher(configured).replaceAll("");
+        String trimmed = configured.trim();
+        if (trimmed.isEmpty()) {
+            return dfl;
+        }
 
-        return configured.isEmpty() ? dfl : Integer.parseInt(configured);
+        try {
+            return Integer.parseInt(trimmed);
+        }
+        catch (NumberFormatException e) {
+            return dfl;
+        }
     }
 
     private String getString(final String key) {
-        final String configured = this.get(key, null);
+        final String configured = this.get(key);
         return configured == null ? "" : configured;
     }
 
@@ -442,13 +447,17 @@ public class Config extends Language {
             map.put("config", Files.readAllBytes(globalFile.toPath()));
         }
 
-        for (final File worldConfigFile : configFolder.listFiles((File file) -> file.getName().endsWith(".yml"))) {
-            final String name = worldConfigFile.getName();
-            if (name.equals(ConfigFile.CONFIG) || name.equals(ConfigFile.LANGUAGE)) {
-                continue;
-            }
+        final File[] worldConfigFiles = configFolder.listFiles(
+                (File file) -> file.isFile() && file.getName().endsWith(".yml") && !file.getName().startsWith("."));
+        if (worldConfigFiles != null) {
+            for (final File worldConfigFile : worldConfigFiles) {
+                final String name = worldConfigFile.getName();
+                if (name.equals(ConfigFile.CONFIG) || name.equals(ConfigFile.LANGUAGE)) {
+                    continue;
+                }
 
-            map.put(name.substring(0, name.length() - ".yml".length()), Files.readAllBytes(worldConfigFile.toPath()));
+                map.put(name.substring(0, name.length() - ".yml".length()), Files.readAllBytes(worldConfigFile.toPath()));
+            }
         }
 
         return map;
@@ -467,7 +476,7 @@ public class Config extends Language {
                     return;
                 }
                 try {
-                    parseConfig(data);
+                    applyParsedConfig(data);
                 }
                 catch (final Throwable thr) {
                     if (thr instanceof ThreadDeath) {
@@ -488,18 +497,23 @@ public class Config extends Language {
             return;
         }
 
+        applyParsedConfig(data);
+    }
+
+    private static void applyParsedConfig(final Map<String, byte[]> data) {
+        final Config newGlobal = new Config();
         // we need to load global first since it is used for config defaults
         final byte[] defaultData = data.get("config");
         if (defaultData != null) {
             try {
-                GLOBAL.load(new ByteArrayInputStream(defaultData));
+                newGlobal.load(new ByteArrayInputStream(defaultData));
             }
             catch (final IOException ex) {
                 throw new RuntimeException(ex); // shouldn't happen
             }
         }
         else {
-            GLOBAL.loadDefaults();
+            newGlobal.loadDefaults();
         }
 
         final Map<String, Config> worldConfigs = new HashMap<>();
@@ -511,7 +525,7 @@ public class Config extends Language {
 
             final byte[] fileData = entry.getValue();
             final Config config = new Config();
-            config.setDefaults(GLOBAL);
+            config.setDefaults(newGlobal);
 
             try {
                 config.load(new ByteArrayInputStream(fileData));
@@ -523,6 +537,7 @@ public class Config extends Language {
             worldConfigs.put(worldName, config);
         }
 
+        global = newGlobal;
         // Replace entries instead of clearing first, so a configured world never reads the global config mid reload
         CONFIG_BY_WORLD_NAME.putAll(worldConfigs);
         CONFIG_BY_WORLD_NAME.keySet().retainAll(worldConfigs.keySet());
@@ -530,46 +545,35 @@ public class Config extends Language {
 
     public void addMissingOptions(final File file) throws IOException {
         final boolean writeHeader = !file.exists() || file.length() == 0;
-        try (final FileOutputStream fout = new FileOutputStream(file, true)) {
-            OutputStreamWriter out = new OutputStreamWriter(new BufferedOutputStream(fout), StandardCharsets.UTF_8);
-            if (writeHeader) {
-                out.append(DEFAULT_FILE_HEADER);
-                out.append(LINE_SEPARATOR);
+        StringBuilder additions = new StringBuilder();
+        if (writeHeader) {
+            additions.append(DEFAULT_FILE_HEADER).append(LINE_SEPARATOR);
+        }
+
+        for (Map.Entry<String, String> entry : DEFAULT_VALUES.entrySet()) {
+            String key = entry.getKey();
+            if (this.config.get(key) != null || key.equals("auto-purge") && VersionUtils.isCommunityEdition()) {
+                continue;
             }
 
-            for (final Map.Entry<String, String> entry : DEFAULT_VALUES.entrySet()) {
-                final String key = entry.getKey();
-                String defaultValue = entry.getValue();
-
-                final String configuredValue = this.config.get(key);
-
-                if (configuredValue != null) {
-                    continue;
-                }
-                if (key.equals("auto-purge") && VersionUtils.isCommunityEdition()) {
-                    continue;
-                }
-                if (key.equals("database-type") && !writeHeader) {
-                    defaultValue = this.getBoolean("use-mysql") ? "mysql" : "sqlite";
-                }
-
-                final String[] header = HEADERS.get(key);
-
-                if (header != null) {
-                    out.append(LINE_SEPARATOR);
-                    for (final String headerLine : header) {
-                        out.append(headerLine);
-                        out.append(LINE_SEPARATOR);
-                    }
-                }
-
-                out.append(key);
-                out.append(": ");
-                out.append(defaultValue);
-                out.append(LINE_SEPARATOR);
+            String defaultValue = entry.getValue();
+            if (key.equals("database-type") && !writeHeader) {
+                defaultValue = this.getBoolean("use-mysql") ? "mysql" : "sqlite";
             }
 
-            out.close();
+            String[] header = HEADERS.get(key);
+            if (header != null) {
+                additions.append(LINE_SEPARATOR);
+                for (String headerLine : header) {
+                    additions.append(headerLine).append(LINE_SEPARATOR);
+                }
+            }
+
+            additions.append(key).append(": ").append(defaultValue).append(LINE_SEPARATOR);
+        }
+
+        if (additions.length() > 0) {
+            Files.writeString(file.toPath(), additions, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         }
     }
 }

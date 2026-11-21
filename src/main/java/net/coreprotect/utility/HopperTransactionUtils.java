@@ -16,10 +16,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 
 public final class HopperTransactionUtils {
 
+    private static final String ENDER_CHEST_PREFIX = "#ender_chest.";
     private static final long APPLY_ALL_MARK = -1L;
     private static final int TRANSACTION_LOCK_COUNT = 256;
 
@@ -38,12 +40,37 @@ public final class HopperTransactionUtils {
         return location.getWorld().getUID().toString() + "." + location.getBlockX() + "." + location.getBlockY() + "." + location.getBlockZ();
     }
 
+    public static String getTransactionId(String user, Material type, Location location) {
+        if (type == Material.ENDER_CHEST) {
+            return getEnderChestGroupId(user);
+        }
+        return getTransactionId(location);
+    }
+
+    public static String getViewerGroupId(String user, Material type, Location location) {
+        if (type == Material.ENDER_CHEST) {
+            return getEnderChestGroupId(user);
+        }
+        return getLoggingIdSuffix(location);
+    }
+
+    public static String getEnderChestGroupId(String user) {
+        return ENDER_CHEST_PREFIX + StringUtils.normalizeUsername(user).toLowerCase(Locale.ROOT);
+    }
+
     public static String getLoggingId(String user, Location location) {
         return getLoggingId(user, getLoggingIdSuffix(location));
     }
 
+    public static String getLoggingId(String user, Material type, Location location) {
+        if (type == Material.ENDER_CHEST) {
+            return getEnderChestGroupId(user) + getLoggingIdSuffix(location);
+        }
+        return getLoggingId(user, location);
+    }
+
     public static String getLoggingId(String user, String locationSuffix) {
-        return user.toLowerCase(Locale.ROOT) + locationSuffix;
+        return StringUtils.normalizeUsername(user).toLowerCase(Locale.ROOT) + locationSuffix;
     }
 
     public static String getLoggingIdSuffix(Location location) {
@@ -211,7 +238,7 @@ public final class HopperTransactionUtils {
             movedItems.add(movedItem.clone());
         }
 
-        return new Object[] { movedItems, ItemUtils.getContainerState(destinationContents) };
+        return new Object[] { movedItems, ItemUtils.getContainerState(destinationContents), System.currentTimeMillis() };
     }
 
     public static ItemStack[] applyPendingChanges(ItemStack[] containerState, String transactionId, long sinceMark) {

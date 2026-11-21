@@ -1,5 +1,7 @@
 package net.coreprotect.worldedit;
 
+import java.util.Map;
+
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.data.BlockData;
@@ -9,12 +11,12 @@ import com.fastasyncworldedit.core.queue.IBatchProcessor;
 import com.fastasyncworldedit.core.queue.IChunk;
 import com.fastasyncworldedit.core.queue.IChunkGet;
 import com.fastasyncworldedit.core.queue.IChunkSet;
+import com.sk89q.jnbt.CompoundTag;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extension.platform.Actor;
 import com.sk89q.worldedit.extent.Extent;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.world.World;
-import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockTypesCache;
 
@@ -22,21 +24,21 @@ import net.coreprotect.config.Config;
 import net.coreprotect.config.ConfigHandler;
 
 final class FastAsyncWorldEditLogger implements IBatchProcessor {
+    private static final int ORDINAL_CACHE_SIZE = Character.MAX_VALUE + 1;
     private static final ProcessorScope SCOPE = resolveScope();
+    private static volatile BlockStateConversion[] conversions;
     private final Actor actor;
     private final World eventWorld;
-    private final Extent extent;
     private final org.bukkit.World world;
 
-    FastAsyncWorldEditLogger(Actor actor, World world, Extent extent) {
+    FastAsyncWorldEditLogger(Actor actor, World world) {
         this.actor = actor;
         this.eventWorld = world;
-        this.extent = extent;
         this.world = BukkitAdapter.adapt(world);
     }
 
     static Extent wrap(Actor actor, World world, Extent extent) {
-        return extent.addProcessor(new FastAsyncWorldEditLogger(actor, world, extent));
+        return extent.addProcessor(new FastAsyncWorldEditLogger(actor, world));
     }
 
     @Override
@@ -46,6 +48,8 @@ final class FastAsyncWorldEditLogger implements IBatchProcessor {
             return set;
         }
 
+        BlockStateConversion[] cached = conversions();
+        Map<BlockVector3, CompoundTag> tiles = set.getTiles();
         int chunkX = chunk.getX() << 4;
         int chunkZ = chunk.getZ() << 4;
         for (int layer = get.getMinSectionPosition(); layer <= get.getMaxSectionPosition(); layer++) {
@@ -61,10 +65,7 @@ final class FastAsyncWorldEditLogger implements IBatchProcessor {
                     continue;
                 }
 
-                int oldOrdinal = original == null ? BlockTypesCache.ReservedIDs.AIR : original[index];
-                if (oldOrdinal == BlockTypesCache.ReservedIDs.__RESERVED__) {
-                    oldOrdinal = BlockTypesCache.ReservedIDs.AIR;
-                }
+                int oldOrdinal = originalOrdinal(original, index);
                 if (oldOrdinal == newOrdinal) {
                     continue;
                 }
@@ -72,25 +73,51 @@ final class FastAsyncWorldEditLogger implements IBatchProcessor {
                 int x = index & 15;
                 int y = (layer << 4) + (index >> 8);
                 int z = (index >> 4) & 15;
-                BlockState oldBlock = BlockState.getFromOrdinal(oldOrdinal);
-                BlockState newBlock = BlockState.getFromOrdinal(newOrdinal);
-                Material oldType = BukkitAdapter.adapt(oldBlock.getBlockType());
-                BlockData oldBlockData = BukkitAdapter.adapt(oldBlock);
-                BlockVector3 position = BlockVector3.at(chunkX + x, y, chunkZ + z);
-                Location location = new Location(world, chunkX + x, y, chunkZ + z);
-                BaseBlock baseBlock = WorldEditLogger.needsBaseBlock(oldType, config) ? get.getFullBlock(x, y, z) : null;
-                org.bukkit.block.BlockState lowerHalf = WorldEditLogger.isLoggedTopHalf(oldType, oldBlockData) ? getLowerHalf(get, set, x, y, z, chunkX + x, chunkZ + z, oldBlockData) : null;
-                WorldEditLogger.postProcess(extent, actor, position, location, newBlock, baseBlock, oldType, oldBlockData, null, false, lowerHalf);
+                CompoundTag tile = tiles.isEmpty() ? null : tiles.get(BlockVector3.at(x, y, z));
+                logChange(get, set, cached, chunkX, chunkZ, x, y, z, oldOrdinal, newOrdinal, tile, config);
+            }
+        }
+        for (Map.Entry<BlockVector3, CompoundTag> entry : tiles.entrySet()) {
+            BlockVector3 position = entry.getKey();
+            int x = position.getBlockX();
+            int y = position.getBlockY();
+            int z = position.getBlockZ();
+            int layer = y >> 4;
+            if (layer < get.getMinSectionPosition() || layer > get.getMaxSectionPosition() || entry.getValue() == null) {
+                continue;
+            }
+            int index = ((y & 15) << 8) | (z << 4) | x;
+            int oldOrdinal = originalOrdinal(get.load(layer), index);
+            char[] changed = set.loadIfPresent(layer);
+            if ((changed == null || changed[index] == BlockTypesCache.ReservedIDs.__RESERVED__ || changed[index] == oldOrdinal)
+                    && WorldEditLogger.needsBaseBlock(conversion(cached, oldOrdinal).getMaterial(), config)) {
+                logChange(get, set, cached, chunkX, chunkZ, x, y, z, oldOrdinal, oldOrdinal, entry.getValue(), config);
             }
         }
         return set;
+    }
+
+    private void logChange(IChunkGet get, IChunkSet set, BlockStateConversion[] cached, int chunkX, int chunkZ, int x, int y, int z, int oldOrdinal, int newOrdinal, CompoundTag newTile, Config config) {
+        BlockStateConversion oldConversion = conversion(cached, oldOrdinal);
+        BlockStateConversion newConversion = conversion(cached, newOrdinal);
+        Material oldType = oldConversion.getMaterial();
+        BlockData oldBlockData = oldConversion.getBlockData();
+        Location location = new Location(world, chunkX + x, y, chunkZ + z);
+        CompoundTag oldTile = WorldEditLogger.needsBaseBlock(oldType, config) ? WorldEditTileData.read(get.getFullBlock(x, y, z)) : null;
+        org.bukkit.block.BlockState lowerHalf = WorldEditLogger.isLoggedTopHalf(oldType, oldBlockData) ? getLowerHalf(get, set, cached, x, y, z, chunkX + x, chunkZ + z, oldBlockData) : null;
+        WorldEditLogger.postProcess(actor, location, oldConversion, oldTile, newConversion, newTile, config, false, lowerHalf);
+    }
+
+    private static int originalOrdinal(char[] original, int index) {
+        int ordinal = original == null ? BlockTypesCache.ReservedIDs.AIR : original[index];
+        return ordinal == BlockTypesCache.ReservedIDs.__RESERVED__ ? BlockTypesCache.ReservedIDs.AIR : ordinal;
     }
 
     /**
      * The matching lower half of a top half as this edit leaves it, read from the chunk data the processor already holds instead of the world.
      * Null when the block below is not that lower half, or when the edit changes it too, since its own row then covers the double block.
      */
-    private org.bukkit.block.BlockState getLowerHalf(IChunkGet get, IChunkSet set, int x, int y, int z, int worldX, int worldZ, BlockData topHalf) {
+    private org.bukkit.block.BlockState getLowerHalf(IChunkGet get, IChunkSet set, BlockStateConversion[] cached, int x, int y, int z, int worldX, int worldZ, BlockData topHalf) {
         int lowerY = y - 1;
         int layer = lowerY >> 4;
         if (layer < get.getMinSectionPosition()) {
@@ -98,22 +125,37 @@ final class FastAsyncWorldEditLogger implements IBatchProcessor {
         }
 
         int index = ((lowerY & 15) << 8) | (z << 4) | x;
-        char[] original = get.load(layer);
-        int ordinal = original == null ? BlockTypesCache.ReservedIDs.AIR : original[index];
-        if (ordinal == BlockTypesCache.ReservedIDs.__RESERVED__) {
-            ordinal = BlockTypesCache.ReservedIDs.AIR;
-        }
+        int ordinal = originalOrdinal(get.load(layer), index);
         char[] changed = set.loadIfPresent(layer);
         if (changed != null && changed[index] != BlockTypesCache.ReservedIDs.__RESERVED__ && changed[index] != ordinal) {
             return null;
         }
 
-        BlockData blockData = BukkitAdapter.adapt(BlockState.getFromOrdinal(ordinal));
-        if (!WorldEditLogger.isOtherHalf(topHalf, blockData)) {
+        BlockStateConversion conversion = conversion(cached, ordinal);
+        if (!WorldEditLogger.isOtherHalf(topHalf, conversion.getBlockData())) {
             return null;
         }
 
-        return new WorldEditBlockState(new Location(world, worldX, lowerY, worldZ), blockData.getMaterial(), blockData);
+        return new WorldEditBlockState(new Location(world, worldX, lowerY, worldZ), conversion.getMaterial(), conversion.getBlockData());
+    }
+
+    private static BlockStateConversion[] conversions() {
+        BlockStateConversion[] cached = conversions;
+        if (cached == null) {
+            cached = new BlockStateConversion[ORDINAL_CACHE_SIZE];
+            conversions = cached;
+        }
+        return cached;
+    }
+
+    private static BlockStateConversion conversion(BlockStateConversion[] cached, int ordinal) {
+        BlockState state = BlockState.getFromOrdinal(ordinal);
+        BlockStateConversion conversion = cached[ordinal];
+        if (conversion == null || conversion.getState() != state) {
+            conversion = BlockStateConversion.of(state);
+            cached[ordinal] = conversion;
+        }
+        return conversion;
     }
 
     @Override

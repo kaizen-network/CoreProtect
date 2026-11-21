@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Set;
 
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
@@ -45,10 +46,12 @@ public final class HopperPushListener {
             return;
         }
 
-        if (Validate.isContainer(sourceHolder)) {
+        ConfigHandler.hopperAbort.remove(loggingChestId);
+
+        if (Validate.isContainer(sourceHolder) && Validate.isHopper(sourceHolder)) {
             HopperTransactionUtils.recordItemRemoved(HopperTransactionUtils.getTransactionId(location), movedItem);
         }
-        HopperPullListener.flushPendingPull(destinationLocation, destinationInventory, destinationContainer);
+        HopperPullListener.flushPendingPull(destinationLocation, destinationContainer);
         if (!Config.getConfig(location.getWorld()).ITEM_TRANSACTIONS) {
             return;
         }
@@ -57,9 +60,6 @@ public final class HopperPushListener {
             return;
         }
 
-        ContainerTransactionDispatcher.submit(destinationLocation, () -> {
-            ConfigHandler.hopperSuccess.put(loggingChestId, new Object[] { destinationContainer, movedItem });
-            InventoryChangeListener.onHopperInventoryInteract(user, destinationInventory, destinationContainer, destinationLocation, movedItem);
-        });
+        ContainerCapture.begin(user, Material.CHEST, destinationLocation.clone(), destinationInventory, destinationContainer, null);
     }
 }

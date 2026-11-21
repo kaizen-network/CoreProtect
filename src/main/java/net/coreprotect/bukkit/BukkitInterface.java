@@ -14,10 +14,15 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Sign;
+import org.bukkit.block.Skull;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Arrow;
+import org.bukkit.entity.AbstractArrow;
+import org.bukkit.entity.Boat;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Firework;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Painting;
 import org.bukkit.entity.Player;
@@ -27,6 +32,7 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.MerchantRecipe;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -65,6 +71,8 @@ public interface BukkitInterface {
      * @return The minimum height
      */
     int getMinHeight(World world);
+
+    boolean isUltraWarm(World world);
 
     /**
      * Gets the legacy block ID for a material.
@@ -110,6 +118,20 @@ public interface BukkitInterface {
      * @return The block data, or null if unsupported/unavailable
      */
     BlockData createBlockDataFromString(String blockData);
+
+    default String getSkullProfileOwner(Skull skull) {
+        return null;
+    }
+
+    default void setSkullProfileOwner(Skull skull, String name) {
+    }
+
+    default String getSkullSkin(Skull skull) {
+        return null;
+    }
+
+    default void setSkullSkin(Skull skull, String skin) {
+    }
 
     // --------------------------------------------------------------------------
     // Material type checking methods
@@ -211,6 +233,8 @@ public interface BukkitInterface {
      */
     Material getPlantSeeds(Material material);
 
+    boolean isSingleBlockPitcherCrop(BlockData blockData);
+
     // --------------------------------------------------------------------------
     // Item and inventory methods
     // --------------------------------------------------------------------------
@@ -278,6 +302,10 @@ public interface BukkitInterface {
      */
     ItemStack getArrowMeta(Arrow arrow, ItemStack itemStack);
 
+    ItemStack getArrowItem(AbstractArrow arrow);
+
+    LivingEntity getFireworkRider(Firework firework);
+
     // --------------------------------------------------------------------------
     // Entity methods
     // --------------------------------------------------------------------------
@@ -291,6 +319,12 @@ public interface BukkitInterface {
      */
     boolean isChunkEntitiesLoaded(Chunk chunk);
 
+    String getBoatVariant(Boat boat);
+
+    void setBoatVariant(Boat boat, String variant);
+
+    EntityType resolveStoredBoatType(boolean chest, String variant);
+
     /**
      * Gets metadata from a living entity.
      * 
@@ -301,6 +335,12 @@ public interface BukkitInterface {
      * @return true if metadata was extracted, false otherwise
      */
     boolean getEntityMeta(LivingEntity entity, List<Object> info);
+
+    boolean hasBodyItemSlot();
+
+    ItemStack getBodyItem(EntityEquipment equipment);
+
+    void setBodyItem(EntityEquipment equipment, ItemStack item);
 
     /**
      * Sets metadata on an entity.
@@ -377,7 +417,7 @@ public interface BukkitInterface {
      *            The material
      * @return The frame class
      */
-    Class<?> getFrameClass(Material material);
+    Class<? extends ItemFrame> getFrameClass(Material material);
 
     /**
      * Spawns an entity, running a function on it before it is added to the world.
@@ -397,6 +437,8 @@ public interface BukkitInterface {
     // --------------------------------------------------------------------------
     // Sign methods
     // --------------------------------------------------------------------------
+
+    void sendSignUpdate(Player player, Location location, Sign sign);
 
     /**
      * Checks if a sign is glowing.

@@ -10,30 +10,30 @@ public class Language {
     private static ConcurrentHashMap<Phrase, String> userPhrases = new ConcurrentHashMap<>();
     private static ConcurrentHashMap<Phrase, String> translatedPhrases = new ConcurrentHashMap<>();
 
-    protected static String getPhrase(Phrase phrase) {
+    public static String getPhrase(Phrase phrase) {
         return phrases.get(phrase);
     }
 
-    protected static String getUserPhrase(Phrase phrase) {
+    public static String getUserPhrase(Phrase phrase) {
         return userPhrases.get(phrase);
     }
 
-    protected static String getTranslatedPhrase(Phrase phrase) {
+    public static String getTranslatedPhrase(Phrase phrase) {
         return translatedPhrases.get(phrase);
     }
 
-    protected static void setUserPhrase(Phrase phrase, String value) {
-        if (value != null) {
-            value = ChatColor.translateAlternateColorCodes('&', value);
+    public static void setUserPhrase(Phrase phrase, String value) {
+        if (phrase == null || value == null) {
+            return;
         }
-        userPhrases.put(phrase, value);
+        userPhrases.put(phrase, ChatColor.translateAlternateColorCodes('&', value));
     }
 
-    protected static void setTranslatedPhrase(Phrase phrase, String value) {
-        if (value != null) {
-            value = ChatColor.translateAlternateColorCodes('&', value);
+    public static void setTranslatedPhrase(Phrase phrase, String value) {
+        if (phrase == null || value == null) {
+            return;
         }
-        translatedPhrases.put(phrase, value);
+        translatedPhrases.put(phrase, ChatColor.translateAlternateColorCodes('&', value));
     }
 
     public static void loadPhrases() {
@@ -82,6 +82,7 @@ public class Language {
         phrases.put(Phrase.HELP_ACTION_1, "Restrict the lookup to a certain action.");
         phrases.put(Phrase.HELP_ACTION_2, "Examples: [a:block], [a:+block], [a:-block] [a:click], [a:container], [a:inventory], [a:item], [a:kill], [a:spawn], [a:chat], [a:command], [a:sign], [a:session], [a:username]");
         phrases.put(Phrase.HELP_COMMAND, "Display more info for that command.");
+        phrases.put(Phrase.HELP_COORDINATES, "Set the center of a radius using coordinates.");
         phrases.put(Phrase.HELP_EXCLUDE_1, "Exclude blocks/users.");
         phrases.put(Phrase.HELP_EXCLUDE_2, "Examples: [e:stone], [e:Notch], [e:stone,Notch]");
         phrases.put(Phrase.HELP_FILTER_1, "Filter chat, command, or sign text.");
@@ -101,6 +102,7 @@ public class Language {
         phrases.put(Phrase.HELP_LOOKUP_1, "Command shortcut.");
         phrases.put(Phrase.HELP_LOOKUP_2, "Use after inspecting a block to view logs.");
         phrases.put(Phrase.HELP_LOOKUP_COMMAND, "Advanced block data lookup.");
+        phrases.put(Phrase.HELP_NEAR_COMMAND, "Look up nearby activity.");
         phrases.put(Phrase.HELP_NO_INFO, "Information for command \"{0}\" not found.");
         phrases.put(Phrase.HELP_PARAMETER, "Please see \"{0}\" for detailed parameter info.");
         phrases.put(Phrase.HELP_PARAMS_1, "Perform the {lookup|rollback|restore}.");
@@ -187,7 +189,7 @@ public class Language {
         phrases.put(Phrase.MISSING_ROLLBACK_USER, "You did not specify a {rollback|restore} user.");
         phrases.put(Phrase.MYSQL_UNAVAILABLE, "Unable to connect to MySQL server.");
         phrases.put(Phrase.NETWORK_CONNECTION, "Connection by {0} {successful|failed}. Using {1} {2}.");
-        phrases.put(Phrase.NETWORK_TEST, "Network test data has been successful sent.");
+        phrases.put(Phrase.NETWORK_TEST, "Network test data has been successfully sent.");
         phrases.put(Phrase.NO_DATA, "No data found at {0}.");
         phrases.put(Phrase.NO_DATA_LOCATION, "No {data|transactions|interactions|messages} found at this location.");
         phrases.put(Phrase.NO_PERMISSION, "You do not have permission to do that.");
@@ -213,7 +215,9 @@ public class Language {
         phrases.put(Phrase.PURGE_ABORTED, "Purge failed. Database may be corrupt.");
         phrases.put(Phrase.PURGE_ERROR, "Unable to process {0} data!");
         phrases.put(Phrase.PURGE_FAILED, "Purge failed. Please try again later.");
+        phrases.put(Phrase.PURGE_INCOMPLETE, "Data purge incomplete. Some rows may already have been deleted.");
         phrases.put(Phrase.PURGE_IN_PROGRESS, "Purge in progress. Please try again later.");
+        phrases.put(Phrase.PURGE_MAINTENANCE_FAILED, "Data purge completed. Post-purge maintenance failed.");
         phrases.put(Phrase.PURGE_MINIMUM_TIME, "You can only purge data older than {0} {days|hours}.");
         phrases.put(Phrase.PURGE_NOTICE_1, "Please note that this may take some time.");
         phrases.put(Phrase.PURGE_NOTICE_2, "Do not restart your server until completed.");
@@ -223,7 +227,7 @@ public class Language {
         phrases.put(Phrase.PURGE_ROWS, "{0} {row|rows} of data deleted.");
         phrases.put(Phrase.PURGE_STARTED, "Data purge started on \"{0}\".");
         phrases.put(Phrase.PURGE_SUCCESS, "Data purge successful.");
-        phrases.put(Phrase.RAM_STATS, "{0}GB / {1}GB RAM");
+        phrases.put(Phrase.RAM_STATS, "{0} GiB / {1} GiB RAM");
         phrases.put(Phrase.RELOAD_STARTED, "Reloading configuration - please wait.");
         phrases.put(Phrase.RELOAD_FAILED, "Database reload failed. Please try again.");
         phrases.put(Phrase.RELOAD_SUCCESS, "Configuration successfully reloaded.");
@@ -253,6 +257,7 @@ public class Language {
         phrases.put(Phrase.TELEPORTED, "Teleported to {0}.");
         phrases.put(Phrase.TELEPORTED_SAFETY, "Teleported you to safety.");
         phrases.put(Phrase.TELEPORT_PLAYERS, "Teleport command can only be used by players.");
+        phrases.put(Phrase.TELEPORT_UNSAFE, "No safe teleport destination was found.");
         phrases.put(Phrase.TIME_DAYS, "{0} {day|days}");
         phrases.put(Phrase.TIME_HOURS, "{0} {hour|hours}");
         phrases.put(Phrase.TIME_MINUTES, "{0} {minute|minutes}");

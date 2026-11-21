@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -29,6 +30,10 @@ public final class DatabaseConfigWriter {
 
     public static synchronized void persistDatabaseType(DatabaseType type) throws IOException {
         Path configFile = Paths.get(ConfigHandler.path).resolve(ConfigFile.CONFIG);
+        persistDatabaseType(configFile, type);
+    }
+
+    static synchronized void persistDatabaseType(Path configFile, DatabaseType type) throws IOException {
         if (!Files.isRegularFile(configFile, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException("CoreProtect config is not a regular file: " + configFile);
         }
@@ -39,25 +44,30 @@ public final class DatabaseConfigWriter {
             return;
         }
 
-        Path directory = configFile.toAbsolutePath().getParent();
-        if (directory == null) {
-            throw new IOException("CoreProtect config has no parent directory: " + configFile);
-        }
+        writeAtomically(configFile, updated);
+    }
 
-        Path temporary = Files.createTempFile(directory, ".config.yml.", ".tmp");
+    public static void writeAtomically(Path target, byte[] content) throws IOException {
+        Path normalized = target.toAbsolutePath();
+        Path directory = normalized.getParent();
+        if (directory == null) {
+            throw new IOException("Target file has no parent directory: " + target);
+        }
+        Files.createDirectories(directory);
+
+        Path fileName = normalized.getFileName();
+        String prefix = "." + (fileName != null ? fileName.toString() : "coreprotect") + ".";
+        Path temporary = Files.createTempFile(directory, prefix, ".tmp");
         boolean moved = false;
         try {
-            Files.write(temporary, updated, StandardOpenOption.TRUNCATE_EXISTING);
+            Files.write(temporary, content, StandardOpenOption.TRUNCATE_EXISTING);
             try (FileChannel channel = FileChannel.open(temporary, StandardOpenOption.WRITE)) {
                 channel.force(true);
             }
-            copyAttributes(configFile, temporary);
-            try {
-                Files.move(temporary, configFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            if (Files.exists(normalized, LinkOption.NOFOLLOW_LINKS)) {
+                copyAttributes(normalized, temporary);
             }
-            catch (AtomicMoveNotSupportedException exception) {
-                throw new IOException("The CoreProtect config filesystem does not support atomic replacement", exception);
-            }
+            moveWithFallback(temporary, normalized);
             moved = true;
             forceDirectory(directory);
         }
@@ -68,15 +78,25 @@ public final class DatabaseConfigWriter {
         }
     }
 
+    private static void moveWithFallback(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        }
+        catch (AtomicMoveNotSupportedException ignored) {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
     private static byte[] updateDatabaseType(byte[] data, DatabaseType type) {
         String content = new String(data, StandardCharsets.UTF_8);
         String databaseType = type.name().toLowerCase(Locale.ROOT);
         String lineSeparator = detectLineSeparator(content);
         boolean terminalLineSeparator = content.endsWith("\n") || content.endsWith("\r");
         boolean foundDatabaseType = false;
-        StringBuilder updated = new StringBuilder(content.length() + 32);
+        int firstLineStart = content.startsWith("\uFEFF") ? 1 : 0;
+        StringBuilder updated = new StringBuilder(content.length() + 32).append(content, 0, firstLineStart);
 
-        int offset = 0;
+        int offset = firstLineStart;
         while (offset < content.length()) {
             int lineEnd = offset;
             while (lineEnd < content.length() && content.charAt(lineEnd) != '\r' && content.charAt(lineEnd) != '\n') {
@@ -105,7 +125,7 @@ public final class DatabaseConfigWriter {
         }
 
         if (!foundDatabaseType) {
-            if (updated.length() > 0 && updated.charAt(updated.length() - 1) != '\n' && updated.charAt(updated.length() - 1) != '\r') {
+            if (updated.length() > firstLineStart && updated.charAt(updated.length() - 1) != '\n' && updated.charAt(updated.length() - 1) != '\r') {
                 updated.append(lineSeparator);
             }
             updated.append("database-type: ").append(databaseType);
@@ -156,26 +176,27 @@ public final class DatabaseConfigWriter {
         return line.substring(0, colon + 1) + whitespace + replacement + suffix;
     }
 
-    private static int findComment(String line, int start) {
-        boolean singleQuoted = false;
-        boolean doubleQuoted = false;
-        boolean escaped = false;
-        for (int index = start; index < line.length(); index++) {
+    static int findComment(String line, int start) {
+        char quote = start < line.length() ? line.charAt(start) : '\0';
+        boolean quoted = quote == '\'' || quote == '"';
+        for (int index = quoted ? start + 1 : start; index < line.length(); index++) {
             char character = line.charAt(index);
-            if (doubleQuoted && character == '\\' && !escaped) {
-                escaped = true;
-                continue;
+            if (quoted) {
+                if (quote == '"' && character == '\\') {
+                    index++;
+                }
+                else if (character == quote) {
+                    if (quote == '\'' && index + 1 < line.length() && line.charAt(index + 1) == quote) {
+                        index++;
+                    }
+                    else {
+                        quoted = false;
+                    }
+                }
             }
-            if (character == '"' && !singleQuoted && !escaped) {
-                doubleQuoted = !doubleQuoted;
-            }
-            else if (character == '\'' && !doubleQuoted) {
-                singleQuoted = !singleQuoted;
-            }
-            else if (character == '#' && !singleQuoted && !doubleQuoted && (index == start || Character.isWhitespace(line.charAt(index - 1)))) {
+            else if (character == '#' && (index == start || Character.isWhitespace(line.charAt(index - 1)))) {
                 return index;
             }
-            escaped = false;
         }
         return -1;
     }
@@ -194,28 +215,45 @@ public final class DatabaseConfigWriter {
         PosixFileAttributeView targetPosix = Files.getFileAttributeView(target, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
         if (sourcePosix != null && targetPosix != null) {
             PosixFileAttributes attributes = sourcePosix.readAttributes();
-            targetPosix.setOwner(attributes.owner());
-            targetPosix.setGroup(attributes.group());
+            try {
+                targetPosix.setOwner(attributes.owner());
+                ownerCopied = true;
+            }
+            catch (FileSystemException | UnsupportedOperationException ignored) {
+            }
+            try {
+                targetPosix.setGroup(attributes.group());
+            }
+            catch (FileSystemException | UnsupportedOperationException ignored) {
+            }
             targetPosix.setPermissions(attributes.permissions());
-            ownerCopied = true;
         }
 
         AclFileAttributeView sourceAcl = Files.getFileAttributeView(source, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
         AclFileAttributeView targetAcl = Files.getFileAttributeView(target, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
         if (sourceAcl != null && targetAcl != null) {
-            // Windows refuses to set an owner without the restore privilege, even the owner the file already has.
-            if (!sourceAcl.getOwner().equals(targetAcl.getOwner())) {
+            try {
                 targetAcl.setOwner(sourceAcl.getOwner());
+                ownerCopied = true;
             }
-            targetAcl.setAcl(sourceAcl.getAcl());
-            ownerCopied = true;
+            catch (FileSystemException | UnsupportedOperationException ignored) {
+            }
+            try {
+                targetAcl.setAcl(sourceAcl.getAcl());
+            }
+            catch (FileSystemException | UnsupportedOperationException ignored) {
+            }
         }
 
         if (!ownerCopied) {
             FileOwnerAttributeView sourceOwner = Files.getFileAttributeView(source, FileOwnerAttributeView.class, LinkOption.NOFOLLOW_LINKS);
             FileOwnerAttributeView targetOwner = Files.getFileAttributeView(target, FileOwnerAttributeView.class, LinkOption.NOFOLLOW_LINKS);
             if (sourceOwner != null && targetOwner != null) {
-                targetOwner.setOwner(sourceOwner.getOwner());
+                try {
+                    targetOwner.setOwner(sourceOwner.getOwner());
+                }
+                catch (FileSystemException | UnsupportedOperationException ignored) {
+                }
             }
         }
 

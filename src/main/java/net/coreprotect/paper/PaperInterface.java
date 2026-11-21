@@ -1,6 +1,7 @@
 package net.coreprotect.paper;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Location;
 import org.bukkit.Server;
@@ -11,6 +12,7 @@ import org.bukkit.block.Sign;
 import org.bukkit.block.Skull;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Firework;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
@@ -27,6 +29,8 @@ public interface PaperInterface {
 
     public boolean isStopping(Server server);
 
+    LivingEntity getFireworkRider(Firework firework);
+
     public double getAverageTickTime(Server server);
 
     public boolean isCopperGolemInteracting(Entity entity);
@@ -37,7 +41,7 @@ public interface PaperInterface {
 
     public boolean isAttached(Block block, Block scanBlock, BlockData blockData, int scanMin);
 
-    public void teleportAsync(Entity entity, Location location);
+    public CompletableFuture<Boolean> teleportAsync(Entity entity, Location location);
 
     public void prefetchChunk(World world, int chunkX, int chunkZ);
 
@@ -48,6 +52,14 @@ public interface PaperInterface {
     public boolean executeEntityTask(Plugin plugin, Entity entity, Runnable task, Runnable retiredTask);
 
     public boolean executeEntityTask(Plugin plugin, Entity entity, Runnable task, Runnable retiredTask, long delayTicks);
+
+    public void scheduleSyncDelayedTask(Plugin plugin, Runnable task, Runnable retiredTask, Object regionData, long delayTicks);
+
+    public Object scheduleSyncRepeatingTask(Plugin plugin, Runnable task, Object regionData, long delayTicks, long periodTicks);
+
+    public void scheduleAsyncDelayedTask(Plugin plugin, Runnable task, long delayTicks);
+
+    public boolean cancelScheduledTask(Object task);
 
     public boolean getEntityMeta(LivingEntity entity, List<Object> info);
 
