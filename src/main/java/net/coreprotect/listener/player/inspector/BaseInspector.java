@@ -16,6 +16,7 @@ import org.bukkit.entity.Player;
 import net.coreprotect.config.ConfigHandler;
 import net.coreprotect.consumer.Consumer;
 import net.coreprotect.database.Database;
+import net.coreprotect.database.LiveDuckDBMigration;
 import net.coreprotect.language.Phrase;
 import net.coreprotect.listener.channel.PluginChannelHandshakeListener;
 import net.coreprotect.utility.Chat;
@@ -183,7 +184,7 @@ public abstract class BaseInspector {
     }
 
     private static void requireInspectionAvailable() throws InspectionException {
-        if (ConfigHandler.converterRunning || ConfigHandler.migrationRunning) {
+        if (ConfigHandler.converterRunning || (ConfigHandler.migrationRunning && !LiveDuckDBMigration.isRunning())) {
             throw new InspectionException(Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.UPGRADE_IN_PROGRESS));
         }
 

@@ -28,6 +28,7 @@ import net.coreprotect.command.parser.TimeParser;
 import net.coreprotect.command.parser.WorldParser;
 import net.coreprotect.config.Config;
 import net.coreprotect.config.ConfigHandler;
+import net.coreprotect.database.LiveDuckDBMigration;
 import net.coreprotect.language.Phrase;
 import net.coreprotect.language.Selector;
 import net.coreprotect.model.action.EntityActionFilter;
@@ -545,7 +546,7 @@ public class LookupCommand {
     }
 
     private static boolean checkMaintenance(CommandSender player) {
-        if (ConfigHandler.converterRunning || ConfigHandler.migrationRunning) {
+        if (ConfigHandler.converterRunning || (ConfigHandler.migrationRunning && !LiveDuckDBMigration.isRunning())) {
             Chat.sendMessage(player, Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.UPGRADE_IN_PROGRESS));
             return false;
         }

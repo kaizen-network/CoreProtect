@@ -129,6 +129,11 @@ public final class LiveDuckDBMigration implements Runnable {
         }) : null;
     }
 
+    // Lookups and the inspector read the live source while this runs, unlike other migrations.
+    public static boolean isRunning() {
+        return running != null;
+    }
+
     public static void runCommand(CommandSender sender, String[] args) {
         if (!(sender instanceof ConsoleCommandSender) && !(sender instanceof RemoteConsoleCommandSender)) {
             reply(sender, "migrate-duckdb can only be run from the server console.");
@@ -491,6 +496,7 @@ public final class LiveDuckDBMigration implements Runnable {
     }
 
     private static void resetDatabaseState() {
+        ConfigHandler.clearLookupHistory(); // saved pages and lookups still running belong to the previous file
         EntitySpawnTracking.invalidateDatabaseVerification();
         DuckDBRecovery.reset();
         DuckDBSpatialIndex.reset(); // also done when DuckDB closes and opens; keyed by URL, which a compaction keeps
