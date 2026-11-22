@@ -475,6 +475,11 @@ public class RollbackProcessor extends Queue {
                         modified += result.modifiedAmount();
                     }
                 }
+                else {
+                    // No container here, usually because this rollback just removed or replaced the block. Mark the row
+                    // anyway, as before 75e5d2a: left unmarked, a restore that puts the container back skips its contents.
+                    applied.add(row);
+                }
             }
         }
         finally {
